@@ -7,14 +7,19 @@ import java.util.*
 fun main(args: Array<String>) {
     println("Hello world!");
 
+    benchmark(false);
+    benchmark(true);
+}
+
+fun benchmark(doubleStream: Boolean) {
     val scrabble = Scrabble();
 
-    println(scrabble.run())
+    println(scrabble.run(doubleStream))
 
     val list = ArrayList<Double>();
     for (i in 1..500) {
         val before = System.nanoTime();
-        scrabble.run();
+        scrabble.run(doubleStream);
         val after = System.nanoTime();
         val speed = (after - before) / 1000000.0;
         //System.out.printf("%3d: %.2f%n", i, speed);
@@ -23,8 +28,12 @@ fun main(args: Array<String>) {
 
     list.sort();
 
-    System.out.printf("----- %.2f ms%n", list[list.size / 2]);
+    if (doubleStream)
+        print("Double ")
+    else
+        print("Simple ")
 
+    System.out.printf("----- %.2f ms%n", list[list.size / 2]);
 }
 
 class Scrabble {
@@ -60,7 +69,7 @@ class Scrabble {
         return result;
     }
 
-    fun run() : Any? {
+    fun run(doubleStream : Boolean) : Any? {
 
         val scoreOfALetter : (Int) -> Int = { letter -> letterScores[letter - 'a'.toInt()] }
 
@@ -124,8 +133,16 @@ class Scrabble {
                     .max() ?: 0
         }
 
-        val score3 : (String) -> Int = { word ->
-            (2 * score2(word)) + (2 * bonusForDoubleLetter(word)) + (if (word.length == 7) 50 else 0)
+        val score3 : (String) -> Int =
+        if (doubleStream) {
+            { word ->
+                (score2(word)) + (score2(word)) + (bonusForDoubleLetter(word)) + (bonusForDoubleLetter(word)) + (if (word.length == 7) 50 else 0)
+            }
+
+        } else {
+            { word ->
+                (2 * score2(word)) + (2 * bonusForDoubleLetter(word)) + (if (word.length == 7) 50 else 0)
+            }
         }
 
         val buildHistoOfLetters : ((String) -> Int) -> Map<Int, List<String>> = { score ->
