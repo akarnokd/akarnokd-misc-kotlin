@@ -38,9 +38,9 @@ fun benchmark(doubleStream: Boolean) {
 
 class Scrabble {
 
-    val scrabbleWords : Set<String>;
+    val scrabbleWords : Collection<String>;
 
-    val shakespeareWords : Set<String>;
+    val shakespeareWords : Collection<String>;
 
     val letterScores = intArrayOf(
             // a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p,  q, r, s, t, u, v, w, x, y,  z
@@ -53,20 +53,18 @@ class Scrabble {
     @Volatile var result : Any? = null;
 
     constructor() {
-        scrabbleWords = readWords("files/ospd.txt")
-        shakespeareWords = readWords("files/words.shakespeare.txt")
+        scrabbleWords = readWords("files/ospd.txt", HashSet())
+        shakespeareWords = readWords("files/words.shakespeare.txt", HashSet())
     }
 
-    private fun readWords(name: String) : Set<String> {
-        val result = HashSet<String>();
-
+    private fun <E : MutableCollection<String>> readWords(name: String, coll: E) : E {
         val lines = Files.readAllLines(Paths.get(name))
 
         for (item in lines) {
-            result.add(item.toLowerCase());
+            coll.add(item.toLowerCase());
         }
 
-        return result;
+        return coll
     }
 
     fun run(doubleStream : Boolean) : Any? {
