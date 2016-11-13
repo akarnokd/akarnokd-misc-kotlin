@@ -136,12 +136,15 @@ class Scrabble {
         val score3 : (String) -> Int =
         if (doubleStream) {
             { word ->
-                (score2(word)) + (score2(word)) + (bonusForDoubleLetter(word)) + (bonusForDoubleLetter(word)) + (if (word.length == 7) 50 else 0)
+                (score2(word)) + (score2(word)) +
+                        (bonusForDoubleLetter(word)) + (bonusForDoubleLetter(word)) +
+                        (if (word.length == 7) 50 else 0)
             }
 
         } else {
             { word ->
-                (2 * score2(word)) + (2 * bonusForDoubleLetter(word)) + (if (word.length == 7) 50 else 0)
+                (2 * score2(word)) + (2 * bonusForDoubleLetter(word)) +
+                        (if (word.length == 7) 50 else 0)
             }
         }
 

@@ -8,6 +8,8 @@
 /ideaSDK
 /android-studio/sdk
 out
+/build
+/.gradle
 tmp
 workspace.xml
 *.versionsBackup
