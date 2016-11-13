@@ -11,7 +11,7 @@ fun main(args: Array<String>) {
 
     println(scrabble.run())
 
-    var list = ArrayList<Double>();
+    val list = ArrayList<Double>();
     for (i in 1..500) {
         val before = System.nanoTime();
         scrabble.run();
@@ -82,7 +82,7 @@ class Scrabble {
             */
 
             word.asSequence()
-                    .groupBy { it.toInt() }
+                    .groupBy(Char::toInt)
                     .mapValues { it.value.sumBy { 1 }.toLong() }
         }
 
@@ -100,18 +100,18 @@ class Scrabble {
             word -> nBlanks(word) <= 2
         }
 
-        var score2 : (String) -> Int = {
+        val score2 : (String) -> Int = {
             word -> histoOfLetters(word)
                 .map(letterScore)
                 .sum()
         }
 
         val first3 : (String) -> Sequence<Int> = { word ->
-            word.asSequence().take(3).map({ v -> v.toInt() })
+            word.asSequence().take(3).map(Char::toInt)
         }
 
         val last3 : (String) -> Sequence<Int> = { word ->
-            word.asSequence().drop(Math.max(0, word.length - 4)).map({ v -> v.toInt() })
+            word.asSequence().drop(Math.max(0, word.length - 4)).map(Char::toInt)
         }
 
         val toBeMaxed : (String) -> Sequence<Int> = { word ->
