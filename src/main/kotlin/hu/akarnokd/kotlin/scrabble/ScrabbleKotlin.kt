@@ -7,19 +7,34 @@ import java.util.*
 fun main(args: Array<String>) {
     println("Hello world!");
 
-    benchmark(false);
-    benchmark(true);
+    benchmark(0);
+    benchmark(1);
+    benchmark(2);
 }
 
-fun benchmark(doubleStream: Boolean) {
+fun benchmark(mode: Int) {
     val scrabble = Scrabble();
 
-    println(scrabble.run(doubleStream))
+    if (mode == 0) {
+        println(scrabble.run(false))
+    } else
+    if (mode == 1) {
+        println(scrabble.run(true))
+    } else {
+        println(scrabble.run2())
+    }
 
     val list = ArrayList<Double>();
     for (i in 1..500) {
         val before = System.nanoTime();
-        scrabble.run(doubleStream);
+        if (mode == 0) {
+            scrabble.run(false)
+        } else
+        if (mode == 1) {
+            scrabble.run(true)
+        } else {
+            scrabble.run2()
+        }
         val after = System.nanoTime();
         val speed = (after - before) / 1000000.0;
         //System.out.printf("%3d: %.2f%n", i, speed);
@@ -28,10 +43,14 @@ fun benchmark(doubleStream: Boolean) {
 
     list.sort();
 
-    if (doubleStream)
-        print("Double ")
-    else
+    if (mode == 0) {
         print("Simple ")
+    } else
+    if (mode == 1) {
+        print("Double ")
+    } else {
+        print("Alt    ")
+    }
 
     System.out.printf("----- %.2f ms%n", list[list.size / 2]);
 }
@@ -51,6 +70,8 @@ class Scrabble {
                9, 2, 2, 1, 12, 2, 3, 2, 9, 1, 1, 4, 2, 6, 8, 2, 1, 6, 4, 6, 4, 2, 2, 1, 2, 1)
 
     @Volatile var result : Any? = null;
+
+    val letter_a = 'a'.toInt()
 
     constructor() {
         scrabbleWords = readWords("files/ospd.txt", HashSet())
@@ -169,5 +190,47 @@ class Scrabble {
         result = finalList
 
         return finalList;
+    }
+
+    fun run2(): Any?  {
+
+        val scoreOfALetter: (Char) -> Int = { letter ->
+            letterScores[letter.toInt() - letter_a]
+        }
+
+        val letterScore: (Map.Entry<Int, Long>) -> Int = { entry ->
+            letterScores[entry.key - letter_a] *
+                    Math.min(entry.value.toInt(), scrabbleAvailableLetters[entry.key  - letter_a])
+        }
+
+        fun histoOfLetters(word: String): Map<Int, Long> = word.groupBy { it.toInt() }.mapValues { it.value.size.toLong() }
+
+        fun blank(entry: Map.Entry<Int, Long>): Long =
+                Math.max(0L, entry.value - scrabbleAvailableLetters[entry.key - letter_a])
+
+        fun nBlanks(word: String): Long = histoOfLetters(word).entries.map { blank(it) }.sum()
+
+        fun checkBlanks(word: String) = nBlanks(word) <= 2
+
+        fun score2(word: String): Int = histoOfLetters(word).entries.map(letterScore).sum()
+
+        fun first3(word: String): List<Char> = word.toCharArray().take(3)
+
+        fun last3(word: String): List<Char> = word.toCharArray().takeLast(3)
+
+        fun toBeMaxed(word: String): Sequence<Char> = sequenceOf(first3(word), last3(word)).flatten()
+
+        fun bonusForDoubleLetter(word: String): Int = toBeMaxed(word).map { scoreOfALetter(it) }.max()?:0
+
+        fun score3(word: String): Int = 2 * (score2(word) + bonusForDoubleLetter(word)) + if (word.length == 7) 50 else 0
+
+        fun buildHistoOnScore(score: (String) -> Int): Map<Int, List<String>> =
+                shakespeareWords
+                        .filter { scrabbleWords.contains(it) }
+                        .filter { checkBlanks(it) }
+                        .groupByTo(TreeMap<Int, MutableList<String>>(Collections.reverseOrder()), score)
+
+        return buildHistoOnScore(::score3).entries.take(3)
+
     }
 }
