@@ -23,3 +23,6 @@ ultimate/out
 ultimate/tmp
 ultimate/workspace.xml
 ultimate/*.versionsBackup
+.idea
+/*.ipr
+/*.iml
