@@ -15,6 +15,6 @@ fun <T> Publisher<T>.toFlowable() : Flowable<T> {
 /**
  * Observe the onNext, onError and onComplete events on the specified scheduler.
  */
-fun <T> Publisher<T>.observeOn(scheduler: Scheduler, delayError: Boolean = false, prefetch : Int = 128) : Flowable<T> {
+fun <T> Flowable<T>.observeOn(scheduler: Scheduler, delayError: Boolean = false, prefetch : Int = 128) : Flowable<T> {
     return FlowableObserveOn(this, scheduler, delayError, prefetch)
 }
