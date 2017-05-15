@@ -2,6 +2,7 @@ buildscript {
     ext.kotlin_version = '1.1.2'
     ext.rxjava2 = "2.1.0"
     ext.reactor3 = "3.0.7.RELEASE"
+    ext.rxjava2extensions = "0.17.0"
 
     repositories {
         mavenCentral()
@@ -22,6 +23,7 @@ repositories {
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     compile "io.reactivex.rxjava2:rxjava:$rxjava2"
+    compile "com.github.akarnokd:rxjava2-extensions:$rxjava2extensions"
     compile "io.projectreactor:reactor-core:$reactor3"
     compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-reactive', version: '0.15'
 
