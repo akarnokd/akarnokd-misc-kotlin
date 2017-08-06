@@ -1,34 +1,67 @@
 buildscript {
-    ext.kotlin_version = '1.1.2'
-    ext.rxjava2 = "2.1.0"
+    ext.kotlin_version = '1.1.3'
+    ext.rxjava2 = "2.1.2"
     ext.reactor3 = "3.0.7.RELEASE"
-    ext.rxjava2extensions = "0.17.0"
+    ext.rxjava2extensions = "0.17.5"
+    ext.jmh_plugin_version = "0.4.4"
+    ext.jmh_version = "1.19"
 
     repositories {
         mavenCentral()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
 
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "me.champeau.gradle:jmh-gradle-plugin:$jmh_plugin_version"
     }
 }
 
 apply plugin: 'idea'
 apply plugin: 'kotlin'
 apply plugin: 'java'
+apply plugin: "me.champeau.gradle.jmh"
+
 repositories {
     mavenCentral()
     jcenter()
 }
+
+
+/*
+sourceSets {
+    main.java.srcDirs += 'src/main/kotlin'
+    main.java.srcDirs += 'src/jmh/kotlin'
+}
+*/
+
+jmh {
+    jmhVersion = "$jmh_version"
+    humanOutputFile = null
+    if (project.hasProperty('jmh')) {
+        include = ".*" + project.jmh + ".*"
+    } else {
+        include = ".*"
+    }
+}
+
+/*
+sourceSets {
+    jmh {
+        compileClasspath += sourceSets.main.runtimeClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+*/
+
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     compile "io.reactivex.rxjava2:rxjava:$rxjava2"
     compile "com.github.akarnokd:rxjava2-extensions:$rxjava2extensions"
     compile "io.projectreactor:reactor-core:$reactor3"
     compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-reactive', version: '0.15'
-
-}
-sourceSets {
-    main.java.srcDirs += 'src/main/kotlin'
+    compile "org.openjdk.jmh:jmh-core:$jmh_version"
 }
 

@@ -1,6 +1,7 @@
 package hu.akarnokd.kotlin
 
 import java.util.*
+import kotlin.NoSuchElementException
 
 fun <T> Sequence<T>.buffer(n: Int) : Sequence<List<T>> {
     return BufferSequence<T>(this, n);
