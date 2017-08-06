@@ -6,7 +6,6 @@ import org.openjdk.jmh.annotations.Benchmark
 import java.util.ArrayList
 
 fun benchmark(name: String, task: () -> Unit) {
-    val scrabble = Scrabble();
 
     val list = ArrayList<Double>();
     for (i in 1..500) {
