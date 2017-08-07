@@ -2,6 +2,7 @@ package hu.akarnokd.kotlin
 
 import hu.akarnokd.kotlin.scrabble.Scrabble
 import io.reactivex.Observable
+import ix.Ix
 import org.openjdk.jmh.annotations.Benchmark
 import java.util.ArrayList
 
@@ -96,4 +97,26 @@ fun main(args: Array<String>) {
                 .first()
     }
 
+    benchmark("list_ixjava") {
+        Ix.range(0, 1_000_000)
+                .map { it + 1 }
+                .last()
+    }
+
+    benchmark("multimapping_ixjava") {
+        Ix.range(0, 1_000_000)
+                .map { it + 1 }
+                .map { it + 1 }
+                .map { it + 1 }
+                .map { it + 1 }
+                .map { it + 1 }
+                .last()
+    }
+
+    benchmark("first_ixjava") {
+        Ix.range(0, 1_000_000)
+                .map { it + 1 }
+                .first()
+
+    }
 }

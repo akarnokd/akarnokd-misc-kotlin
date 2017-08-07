@@ -5,6 +5,7 @@ buildscript {
     ext.rxjava2extensions = "0.17.5"
     ext.jmh_plugin_version = "0.4.4"
     ext.jmh_version = "1.19"
+    ext.ixjava = "1.0.0-RC5"
 
     repositories {
         mavenCentral()
@@ -27,6 +28,16 @@ apply plugin: "me.champeau.gradle.jmh"
 repositories {
     mavenCentral()
     jcenter()
+}
+
+dependencies {
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    compile "io.reactivex.rxjava2:rxjava:$rxjava2"
+    compile "com.github.akarnokd:rxjava2-extensions:$rxjava2extensions"
+    compile "com.github.akarnokd:ixjava:$ixjava"
+    compile "io.projectreactor:reactor-core:$reactor3"
+    compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-reactive', version: '0.15'
+    compile "org.openjdk.jmh:jmh-core:$jmh_version"
 }
 
 
@@ -55,13 +66,4 @@ sourceSets {
     }
 }
 */
-
-dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    compile "io.reactivex.rxjava2:rxjava:$rxjava2"
-    compile "com.github.akarnokd:rxjava2-extensions:$rxjava2extensions"
-    compile "io.projectreactor:reactor-core:$reactor3"
-    compile group: 'org.jetbrains.kotlinx', name: 'kotlinx-coroutines-reactive', version: '0.15'
-    compile "org.openjdk.jmh:jmh-core:$jmh_version"
-}
 
