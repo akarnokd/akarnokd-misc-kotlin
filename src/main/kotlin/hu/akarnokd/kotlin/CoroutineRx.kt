@@ -13,7 +13,7 @@ fun range(context: CoroutineContext, start: Int, count : Int) = publish<Int>(con
 }
 
 class A {
-    @Volatile var obj : Object? = null;
+    @Volatile var obj : Any? = null;
 }
 
 fun main(arg: Array<String>) = runBlocking<Unit> {
@@ -24,7 +24,7 @@ fun main(arg: Array<String>) = runBlocking<Unit> {
         val n = 1000000;
         var a = A();
 
-        range(Unconfined, 1, n).consumeEach { a.obj = it as Object }
+        range(Unconfined, 1, n).consumeEach { a.obj = it as Any }
 
         val t1 = System.nanoTime();
         println("" + i + "-" + ((n * 1E9 / (t1 - t0)).toInt()) + " ops/s")
@@ -36,7 +36,7 @@ fun main(arg: Array<String>) = runBlocking<Unit> {
         val n = 1000000;
         var a = A();
 
-        Flowable.range(1, n).subscribe { a.obj = it as Object }
+        Flowable.range(1, n).subscribe { a.obj = it as Any }
 
         val t1 = System.nanoTime();
         println("" + i + "-" + ((n * 1E9 / (t1 - t0)).toInt()) + " ops/s")
@@ -49,7 +49,7 @@ fun main(arg: Array<String>) = runBlocking<Unit> {
         val n = 1000000;
         var a = A();
 
-        Observable.range(1, n).subscribe { a.obj = it as Object }
+        Observable.range(1, n).subscribe { a.obj = it as Any }
 
         val t1 = System.nanoTime();
         println("" + i + "-" + ((n * 1E9 / (t1 - t0)).toInt()) + " ops/s")
