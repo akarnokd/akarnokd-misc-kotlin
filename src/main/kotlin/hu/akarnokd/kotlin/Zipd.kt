@@ -2,6 +2,7 @@ package hu.akarnokd.kotlin
 
 import hu.akarnokd.rxjava2.schedulers.BlockingScheduler
 import io.reactivex.Single
+import io.reactivex.SingleTransformer
 import io.reactivex.functions.BiFunction
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
@@ -62,12 +63,26 @@ suspend fun coroutineWay() {
 }
 
 fun reactiveWay() {
+
     RxJavaPlugins.setErrorHandler({ })
 
     val sched = BlockingScheduler()
     sched.execute {
         val t0 = System.currentTimeMillis()
         val count = Array<Int>(1, { 0 })
+
+        val timeoutRetry = SingleTransformer<Int, Int> {
+            it.doOnDispose({
+                println("    Cancelling at T=" +
+                        (System.currentTimeMillis() - t0))
+            })
+            .timeout(500, TimeUnit.MILLISECONDS)
+            .retry({ x, e ->
+                println("         Crash at " +
+                        (System.currentTimeMillis() - t0))
+                x < 3 && e is TimeoutException
+            })
+        }
 
         Single.defer({
             val c = count[0]++;
