@@ -1,6 +1,5 @@
 package hu.akarnokd.kotlin
 
-import java.util.*
 import java.util.concurrent.ThreadLocalRandom
 
 fun main(args: Array<String>) {
