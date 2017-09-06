@@ -6,10 +6,7 @@ import io.reactivex.SingleTransformer
 import io.reactivex.functions.BiFunction
 import io.reactivex.plugins.RxJavaPlugins
 import io.reactivex.schedulers.Schedulers
-import kotlinx.coroutines.experimental.CommonPool
-import kotlinx.coroutines.experimental.async
-import kotlinx.coroutines.experimental.launch
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.experimental.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -38,7 +35,7 @@ suspend fun coroutineWay() {
         var v2 = async(CommonPool) { f2(i) }
 
         var v3 = launch(CommonPool) {
-            Thread.sleep(500)
+            delay(500)
             println("    Cancelling at T=" + (System.currentTimeMillis() - t0))
             val te = TimeoutException();
             v1.cancel(te);

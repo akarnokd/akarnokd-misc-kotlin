@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/akarnokd-misc-kotlin.iml" filepath="$PROJECT_DIR$/akarnokd-misc-kotlin.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/akarnokd-misc-kotlin_jmh.iml" filepath="$PROJECT_DIR$/.idea/modules/akarnokd-misc-kotlin_jmh.iml" group="akarnokd-misc-kotlin" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/akarnokd-misc-kotlin_main.iml" filepath="$PROJECT_DIR$/.idea/modules/akarnokd-misc-kotlin_main.iml" group="akarnokd-misc-kotlin" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/akarnokd-misc-kotlin_test.iml" filepath="$PROJECT_DIR$/.idea/modules/akarnokd-misc-kotlin_test.iml" group="akarnokd-misc-kotlin" />
     </modules>
