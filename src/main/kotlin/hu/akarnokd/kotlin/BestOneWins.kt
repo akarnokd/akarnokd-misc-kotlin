@@ -9,30 +9,30 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 fun main(arg: Array<String>) = runBlocking<Unit> {
 
-    var win1 = 0
-    var win2 = 0
+    val win1 = Array(1, { 0 })
+    val win2 = Array(1, { 0 })
 
     for (i in 0 until 1000) {
         val d1 = async(CommonPool) { coroutineWins() }
         val d2 = async(CommonPool) { reactiveWins() }
 
-        d1.invokeOnCompletion { if (d2.isActive) win1++ }
-        d2.invokeOnCompletion { if (d1.isActive) win2++ }
+        d1.invokeOnCompletion { if (d2.isActive) win1[0]++ }
+        d2.invokeOnCompletion { if (d1.isActive) win2[0]++ }
 
         d1.await()
         d2.await()
     }
 
     println("Votes, round 1:")
-    println("  $win1 for Coroutines")
-    println("  $win2 for Reactive")
+    println("  ${win1[0]} for Coroutines")
+    println("  ${win2[0]} for Reactive")
     println("--------")
-    println("  ${win1 + win2} votes")
+    println("  ${win1[0] + win2[0]} votes")
 
     println("====================================")
 
-    val win3 = Array(1, { 0 })
-    val win4 = Array(1, { 0 })
+    win1[0] = 0
+    win2[0] = 0
 
     Flowable.range(1, 1000)
             .concatMap({
@@ -41,19 +41,19 @@ fun main(arg: Array<String>) = runBlocking<Unit> {
                         Flowable.just("Reactive!").delay(1, TimeUnit.MILLISECONDS)
                 )
             })
-            .doOnNext({ v -> if (v == "Coroutines!") win3[0]++ else win4[0]++ })
+            .doOnNext({ v -> if (v == "Coroutines!") win1[0]++ else win2[0]++ })
             .blockingLast()
 
     println("Votes, round 2:")
-    println("  ${win3[0]} for Coroutines")
-    println("  ${win4[0]} for Reactive")
+    println("  ${win1[0]} for Coroutines")
+    println("  ${win2[0]} for Reactive")
     println("--------")
-    println("  ${win3[0] + win4[0]} votes")
+    println("  ${win1[0] + win2[0]} votes")
 
     println("====================================")
 
-    win1 = 0
-    win2 = 0
+    win1[0] = 0
+    win2[0] = 0
 
     for (i in 0 until 1000) {
         val d1 = async(CommonPool) { coroutineWins() }
@@ -61,24 +61,24 @@ fun main(arg: Array<String>) = runBlocking<Unit> {
 
         val once = AtomicBoolean();
 
-        d1.invokeOnCompletion { if (once.compareAndSet(false, true)) win1++ }
-        d2.invokeOnCompletion { if (once.compareAndSet(false, true)) win2++ }
+        d1.invokeOnCompletion { if (once.compareAndSet(false, true)) win1[0]++ }
+        d2.invokeOnCompletion { if (once.compareAndSet(false, true)) win2[0]++ }
 
         d1.await()
         d2.await()
     }
 
     println("Votes, round 3:")
-    println("  $win1 for Coroutines")
-    println("  $win2 for Reactive")
+    println("  ${win1[0]} for Coroutines")
+    println("  ${win2[0]} for Reactive")
     println("--------")
-    println("  ${win1 + win2} votes")
+    println("  ${win1[0] + win2[0]} votes")
 
 
     println("====================================")
 
-    win3[0] = 0
-    win4[0] = 0
+    win1[0] = 0
+    win2[0] = 0
 
     val exec1 = Executors.newScheduledThreadPool(1)
     val exec2 = Executors.newScheduledThreadPool(1)
@@ -92,15 +92,15 @@ fun main(arg: Array<String>) = runBlocking<Unit> {
         exec2.schedule({ f1.complete("Reactive!") }, 1, TimeUnit.MILLISECONDS)
 
         CompletableFuture.anyOf(f1, f2)
-                .whenComplete({ v, e -> if (v == "Coroutines!") win3[0]++ else win4[0]++})
+                .whenComplete({ v, e -> if (v == "Coroutines!") win1[0]++ else win2[0]++})
                 .join()
     }
 
     println("Votes, round 4:")
-    println("  ${win3[0]} for Coroutines")
-    println("  ${win4[0]} for Reactive")
+    println("  ${win1[0]} for Coroutines")
+    println("  ${win2[0]} for Reactive")
     println("--------")
-    println("  ${win3[0] + win4[0]} votes")
+    println("  ${win1[0] + win2[0]} votes")
 
     exec1.shutdown()
     exec2.shutdown()
