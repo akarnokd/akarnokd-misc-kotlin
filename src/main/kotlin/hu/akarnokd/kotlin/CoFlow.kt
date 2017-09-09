@@ -16,8 +16,8 @@ import kotlin.system.measureTimeMillis
 
 fun main(arg: Array<String>) = runBlocking<Unit> {
 
-    val ctx1 = newSingleThreadContext("A");
-    val ctx2 = newSingleThreadContext("B");
+    val ctx1 = newSingleThreadContext("A")
+    val ctx2 = newSingleThreadContext("B")
 
     println(measureTimeMillis {
         Range(1, 1_000_000)
@@ -102,7 +102,7 @@ interface CoFlow<out T> {
 }
 
 interface CoConnection {
-    suspend fun close();
+    suspend fun close()
 }
 
 interface CoConsumer<in T> {
@@ -119,10 +119,10 @@ interface CoConsumer<in T> {
 class BooleanConnection : CoConnection {
 
     @Volatile
-    var cancelled : Boolean = false;
+    var cancelled : Boolean = false
 
     suspend override fun close() {
-        cancelled = true;
+        cancelled = true
     }
 
 }
@@ -130,7 +130,7 @@ class BooleanConnection : CoConnection {
 class Just<out T>(private val value : T) : CoFlow<T> {
     suspend override fun subscribe(consumer: CoConsumer<T>) {
         val conn = BooleanConnection()
-        consumer.onSubscribe(conn);
+        consumer.onSubscribe(conn)
         if (!conn.cancelled) {
             consumer.onNext(value)
         }
@@ -141,6 +141,22 @@ class Just<out T>(private val value : T) : CoFlow<T> {
 }
 
 class FromArray<out T>(private val values: Array<T>) : CoFlow<T> {
+    suspend override fun subscribe(consumer: CoConsumer<T>) {
+        val conn = BooleanConnection()
+        consumer.onSubscribe(conn)
+        for (v in values) {
+            if (conn.cancelled) {
+                return
+            }
+            consumer.onNext(v)
+        }
+        if (!conn.cancelled) {
+            consumer.onComplete()
+        }
+    }
+}
+
+class FromIterable<out T>(private val values: Iterable<T>) : CoFlow<T> {
     suspend override fun subscribe(consumer: CoConsumer<T>) {
         val conn = BooleanConnection()
         consumer.onSubscribe(conn)
@@ -182,27 +198,27 @@ class SequentialConnection : AtomicReference<CoConnection?>(), CoConnection {
 
     suspend fun replace(conn: CoConnection?) : Boolean {
         while (true) {
-            val a = get();
+            val a = get()
             if (a == Disconnected) {
                 conn?.close()
                 return false
             }
             if (compareAndSet(a, conn)) {
-                return true;
+                return true
             }
         }
     }
 
     suspend fun update(conn: CoConnection?) : Boolean {
         while (true) {
-            val a = get();
+            val a = get()
             if (a == Disconnected) {
                 conn?.close()
                 return false
             }
             if (compareAndSet(a, conn)) {
                 a?.close()
-                return true;
+                return true
             }
         }
     }
@@ -220,7 +236,7 @@ suspend fun <T> CoFlow<T>.subscribe(
     val connection = SequentialConnection()
     this.subscribe(object : CoConsumer<T> {
         suspend override fun onSubscribe(conn: CoConnection) {
-            connection.replace(conn);
+            connection.replace(conn)
         }
 
         suspend override fun onNext(t: T) {
@@ -239,23 +255,23 @@ suspend fun <T> CoFlow<T>.subscribe(
 }
 
 suspend fun <T> CoFlow<T>.take(n: Long) : CoFlow<T> {
-    val source = this;
+    val source = this
     return object: CoFlow<T> {
         suspend override fun subscribe(consumer: CoConsumer<T>) {
             source.subscribe(object: CoConsumer<T> {
 
                 var upstream: CoConnection? = null
-                var remaining = n;
+                var remaining = n
 
                 suspend override fun onSubscribe(conn: CoConnection) {
-                    upstream = conn;
+                    upstream = conn
                     consumer.onSubscribe(conn)
                 }
 
                 suspend override fun onNext(t: T) {
-                    var r = remaining;
+                    var r = remaining
                     if (r != 0L) {
-                        consumer.onNext(t);
+                        consumer.onNext(t)
                         remaining = --r
                         if (r == 0L) {
                             upstream!!.close()
@@ -280,7 +296,7 @@ suspend fun <T> CoFlow<T>.take(n: Long) : CoFlow<T> {
 }
 
 suspend fun <T> CoFlow<T>.subscribeOn(context: CoroutineContext) : CoFlow<T> {
-    val source = this;
+    val source = this
     return object: CoFlow<T> {
         suspend override fun subscribe(consumer: CoConsumer<T>) {
             launch(context) {
@@ -291,7 +307,7 @@ suspend fun <T> CoFlow<T>.subscribeOn(context: CoroutineContext) : CoFlow<T> {
 }
 
 suspend fun <T> CoFlow<T>.observeOn(context: CoroutineContext, capacity : Int = 0) : CoFlow<T> {
-    val source = this;
+    val source = this
     return object: CoFlow<T> {
         suspend override fun subscribe(consumer: CoConsumer<T>) {
             val ch = if (capacity == 0) Channel<T>() else Channel<T>(capacity)
@@ -333,21 +349,21 @@ suspend fun <T> CoFlow<T>.observeOn(context: CoroutineContext, capacity : Int = 
 }
 
 suspend fun <T, R> CoFlow<T>.map(mapper: suspend (T) -> R) : CoFlow<R> {
-    val source = this;
+    val source = this
     return object: CoFlow<R> {
         suspend override fun subscribe(consumer: CoConsumer<R>) {
             source.subscribe(object : CoConsumer<T> {
 
-                var upstream: CoConnection? = null;
-                var done: Boolean = false;
+                var upstream: CoConnection? = null
+                var done: Boolean = false
 
                 suspend override fun onNext(t: T) {
-                    val r : R;
+                    val r : R
 
                     try {
-                        r = mapper(t);
+                        r = mapper(t)
                     } catch (ex: Throwable) {
-                        done = true;
+                        done = true
                         upstream!!.close()
                         return
                     }
@@ -367,7 +383,49 @@ suspend fun <T, R> CoFlow<T>.map(mapper: suspend (T) -> R) : CoFlow<R> {
                 }
 
                 suspend override fun onSubscribe(conn: CoConnection) {
-                    upstream = conn;
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+            })
+        }
+    }
+}
+
+
+suspend fun <T> CoFlow<T>.doOnNext(handler: suspend (T) -> Unit) : CoFlow<T> {
+    val source = this
+    return object: CoFlow<T> {
+        suspend override fun subscribe(consumer: CoConsumer<T>) {
+            source.subscribe(object : CoConsumer<T> {
+
+                var upstream: CoConnection? = null
+                var done: Boolean = false
+
+                suspend override fun onNext(t: T) {
+                    try {
+                        handler(t)
+                    } catch (ex: Throwable) {
+                        done = true
+                        upstream!!.close()
+                        return
+                    }
+                    consumer.onNext(t)
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    if (!done) {
+                        consumer.onError(t)
+                    }
+                }
+
+                suspend override fun onComplete() {
+                    if (!done) {
+                        consumer.onComplete()
+                    }
+                }
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
                     consumer.onSubscribe(conn)
                 }
             })
@@ -377,7 +435,7 @@ suspend fun <T, R> CoFlow<T>.map(mapper: suspend (T) -> R) : CoFlow<R> {
 
 suspend fun CoFlow<Any>.subscribe() {
 
-    val ch = Channel<Unit>()
+    val ch = Channel<Unit>(1)
 
     this.subscribe(object : CoConsumer<Any> {
         suspend override fun onSubscribe(conn: CoConnection) {
@@ -403,7 +461,7 @@ suspend fun CoFlow<Any>.subscribe() {
 }
 
 suspend fun <T> Flowable<T>.await() {
-    val source = this;
+    val source = this
 
     suspendCancellableCoroutine<Unit> { cont ->
 
@@ -431,3 +489,409 @@ suspend fun <T> Flowable<T>.await() {
 
     }
 }
+
+class Chars(private val string: String) : CoFlow<Int> {
+    suspend override fun subscribe(consumer: CoConsumer<Int>) {
+        val conn = BooleanConnection()
+        consumer.onSubscribe(conn)
+        for (i in 0 until string.length) {
+            if (conn.cancelled) {
+                return
+            }
+            consumer.onNext(string[i].toInt())
+        }
+        if (!conn.cancelled) {
+            consumer.onComplete()
+        }
+    }
+}
+
+suspend fun <T, R> CoFlow<T>.collect(collectionSupplier: suspend () -> R, collector: suspend (R, T) -> Unit) : CoFlow<R> {
+    val source = this
+    return object: CoFlow<R> {
+        suspend override fun subscribe(consumer: CoConsumer<R>) {
+            val coll : R
+
+            try {
+                coll = collectionSupplier()
+            } catch (ex: Throwable) {
+                consumer.onSubscribe(BooleanConnection())
+                consumer.onError(ex)
+                return
+            }
+
+            source.subscribe(object : CoConsumer<T> {
+
+                var upstream: CoConnection? = null
+                var done: Boolean = false
+                val collection : R = coll
+
+                suspend override fun onNext(t: T) {
+                    try {
+                        collector(collection, t);
+                    } catch (ex: Throwable) {
+                        done = true;
+                        upstream!!.close();
+                        consumer.onError(ex)
+                    }
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    if (!done) {
+                        consumer.onError(t)
+                    }
+                }
+
+                suspend override fun onComplete() {
+                    if (!done) {
+                        consumer.onNext(collection)
+                        consumer.onComplete()
+                    }
+                }
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+            })
+        }
+    }
+}
+
+suspend fun <T, R> CoFlow<T>.flatten(mapper: suspend (T) -> Iterable<R>) : CoFlow<R> {
+    val source = this
+    return object: CoFlow<R> {
+        suspend override fun subscribe(consumer: CoConsumer<R>) {
+            source.subscribe(object : CoConsumer<T> {
+
+                var upstream: CoConnection? = null
+                var done: Boolean = false
+
+                suspend override fun onNext(t: T) {
+                    try {
+                        for (v in  mapper(t)) {
+                            consumer.onNext(v)
+                        }
+                    } catch (ex: Throwable) {
+                        done = true;
+                        upstream!!.close()
+                        consumer.onError(ex)
+                        return
+                    }
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    if (!done) {
+                        consumer.onError(t)
+                    }
+                }
+
+                suspend override fun onComplete() {
+                    if (!done) {
+                        consumer.onComplete()
+                    }
+                }
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+            })
+        }
+    }
+}
+
+
+suspend fun CoFlow<Number>.sumLong() : CoFlow<Long> {
+    val source = this
+    return object: CoFlow<Long> {
+        suspend override fun subscribe(consumer: CoConsumer<Long>) {
+            source.subscribe(object : CoConsumer<Number> {
+
+                var upstream: CoConnection? = null
+                var done: Boolean = false
+                var sum: Long = 0;
+                var hasValue : Boolean = false;
+
+                suspend override fun onNext(t: Number) {
+                    if (!hasValue) {
+                        hasValue = true
+                    }
+                    sum += t.toLong();
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    if (!done) {
+                        consumer.onError(t)
+                    }
+                }
+
+                suspend override fun onComplete() {
+                    if (!done) {
+                        if (hasValue) {
+                            consumer.onNext(sum)
+                        }
+                        consumer.onComplete()
+                    }
+                }
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+            })
+        }
+    }
+}
+
+
+suspend fun CoFlow<Number>.sumInt() : CoFlow<Int> {
+    val source = this
+    return object: CoFlow<Int> {
+        suspend override fun subscribe(consumer: CoConsumer<Int>) {
+            source.subscribe(object : CoConsumer<Number> {
+
+                var upstream: CoConnection? = null
+                var done: Boolean = false
+                var sum: Int = 0;
+                var hasValue : Boolean = false;
+
+                suspend override fun onNext(t: Number) {
+                    if (!hasValue) {
+                        hasValue = true
+                    }
+                    sum += t.toInt();
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    if (!done) {
+                        consumer.onError(t)
+                    }
+                }
+
+                suspend override fun onComplete() {
+                    if (!done) {
+                        if (hasValue) {
+                            consumer.onNext(sum)
+                        }
+                        consumer.onComplete()
+                    }
+                }
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+            })
+        }
+    }
+}
+
+
+suspend fun <T> CoFlow<T>.skip(n: Long) : CoFlow<T> {
+    val source = this
+    return object: CoFlow<T> {
+        suspend override fun subscribe(consumer: CoConsumer<T>) {
+            source.subscribe(object: CoConsumer<T> {
+
+                var upstream: CoConnection? = null
+                var remaining = n
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+
+                suspend override fun onNext(t: T) {
+                    val r = remaining
+                    if (r != 0L) {
+                        remaining = r - 1
+                    } else {
+                        consumer.onNext(t)
+                    }
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    consumer.onError(t)
+                }
+
+                suspend override fun onComplete() {
+                    consumer.onComplete()
+                }
+            })
+        }
+    }
+}
+
+suspend fun <T> concat(vararg sources: CoFlow<T>) : CoFlow<T> {
+    return object: CoFlow<T> {
+        suspend override fun subscribe(consumer: CoConsumer<T>) {
+            val closeToken = SequentialConnection()
+            consumer.onSubscribe(closeToken)
+            launch(Unconfined) {
+                val ch = Channel<Unit>(1);
+
+                for (source in sources) {
+
+                    source.subscribe(object: CoConsumer<T> {
+                        suspend override fun onSubscribe(conn: CoConnection) {
+                            closeToken.replace(conn)
+                        }
+
+                        suspend override fun onNext(t: T) {
+                            consumer.onNext(t)
+                        }
+
+                        suspend override fun onError(t: Throwable) {
+                            consumer.onError(t)
+                            ch.close()
+                        }
+
+                        suspend override fun onComplete() {
+                            ch.send(Unit)
+                        }
+
+                    })
+
+                    try {
+                        ch.receive()
+                    } catch (ex: Throwable) {
+                        // ignored
+                        return@launch
+                    }
+                }
+
+                consumer.onComplete()
+            }
+        }
+    }
+}
+
+
+suspend fun <T: Comparable<T>> CoFlow<T>.max() : CoFlow<T> {
+    val source = this
+    return object: CoFlow<T> {
+        suspend override fun subscribe(consumer: CoConsumer<T>) {
+            source.subscribe(object : CoConsumer<T> {
+
+                var upstream: CoConnection? = null
+                var done: Boolean = false
+                var sum: T? = null;
+
+                suspend override fun onNext(t: T) {
+                    val u = sum;
+                    if (u == null) {
+                        sum = t
+                    } else {
+                        if (sum!! < t) {
+                            sum = t;
+                        }
+                    }
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    if (!done) {
+                        consumer.onError(t)
+                    }
+                }
+
+                suspend override fun onComplete() {
+                    if (!done) {
+                        val u = sum;
+                        if (u != null) {
+                            consumer.onNext(u)
+                        }
+                        consumer.onComplete()
+                    }
+                }
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+            })
+        }
+    }
+}
+
+
+suspend fun <T> CoFlow<T>.filter(predicate: suspend (T) -> Boolean) : CoFlow<T> {
+    val source = this
+    return object: CoFlow<T> {
+        suspend override fun subscribe(consumer: CoConsumer<T>) {
+            source.subscribe(object : CoConsumer<T> {
+
+                var upstream: CoConnection? = null
+                var done: Boolean = false
+
+                suspend override fun onNext(t: T) {
+                    try {
+                        if (predicate(t)) {
+                            consumer.onNext(t)
+                        }
+                    } catch (ex: Throwable) {
+                        done = true;
+                        upstream!!.close()
+                        consumer.onError(ex)
+                        return
+                    }
+                }
+
+                suspend override fun onError(t: Throwable) {
+                    if (!done) {
+                        consumer.onError(t)
+                    }
+                }
+
+                suspend override fun onComplete() {
+                    if (!done) {
+                        consumer.onComplete()
+                    }
+                }
+
+                suspend override fun onSubscribe(conn: CoConnection) {
+                    upstream = conn
+                    consumer.onSubscribe(conn)
+                }
+            })
+        }
+    }
+}
+
+
+suspend fun <T> CoFlow<T>.awaitFirst() : T {
+    val source = this
+
+    val ch = Channel<T>(1)
+
+    source.subscribe(object : CoConsumer<T> {
+        var upstream : CoConnection? = null
+        var done : Boolean = false
+
+        suspend override fun onSubscribe(conn: CoConnection) {
+            upstream = conn
+        }
+
+        suspend override fun onNext(t: T) {
+            done = true
+            upstream!!.close()
+            ch.send(t)
+        }
+
+        suspend override fun onError(t: Throwable) {
+            if (!done) {
+                ch.close(t)
+            }
+        }
+
+        suspend override fun onComplete() {
+            if (!done) {
+                ch.close(NoSuchElementException())
+            }
+        }
+    })
+
+    return ch.receive()
+}
+
+
