@@ -1,100 +1,13 @@
-package hu.akarnokd.kotlin
+package hu.akarnokd.kotlin.coflow
 
 import io.reactivex.Flowable
 import io.reactivex.FlowableSubscriber
-import io.reactivex.internal.schedulers.SingleScheduler
-import io.reactivex.schedulers.Schedulers
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.ClosedReceiveChannelException
 import org.reactivestreams.Subscription
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.experimental.Continuation
 import kotlin.coroutines.experimental.CoroutineContext
-import kotlin.coroutines.experimental.suspendCoroutine
-import kotlin.system.measureTimeMillis
-
-fun main(arg: Array<String>) = runBlocking<Unit> {
-
-    val ctx1 = newSingleThreadContext("A")
-    val ctx2 = newSingleThreadContext("B")
-
-    println(measureTimeMillis {
-        Range(1, 1_000_000)
-                .subscribeOn(ctx1)
-                .take(500_000)
-                .observeOn(ctx2)
-                .map({
-                    if ((it % 50000) == 0) {
-                        println("${it} on ${Thread.currentThread().name}")
-                    }
-                    it + 1
-                })
-                .subscribe()
-    })
-    println("Done 1a")
-
-    println(measureTimeMillis {
-        Range(1, 1_000_000)
-                .subscribeOn(ctx1)
-                .take(500_000)
-                .observeOn(ctx2, 1)
-                .map({
-                    if ((it % 50000) == 0) {
-                        println("${it} on ${Thread.currentThread().name}")
-                    }
-                    it + 1
-                })
-                .subscribe()
-    })
-    println("Done 1b")
-
-    println(measureTimeMillis {
-        Range(1, 1_000_000)
-                .subscribeOn(ctx1)
-                .take(500_000)
-                .observeOn(ctx2, 128)
-                .map({
-                    if ((it % 50000) == 0) {
-                        println("${it} on ${Thread.currentThread().name}")
-                    }
-                    it + 1
-                })
-                .subscribe()
-    })
-
-    println("Done 1c")
-
-    println(measureTimeMillis {
-        Flowable.range(1, 1_000_000)
-                .subscribeOn(SingleScheduler())
-                .take(500_000)
-                .observeOn(SingleScheduler(), false, 1)
-                .map({
-                    if ((it % 50000) == 0) {
-                        println("${it} on ${Thread.currentThread().name }")
-                    }
-                    it + 1 })
-                .await()
-    })
-
-    println("Done 2a")
-
-    println(measureTimeMillis {
-        Flowable.range(1, 1_000_000)
-                .subscribeOn(SingleScheduler())
-                .take(500_000)
-                .observeOn(SingleScheduler())
-                .map({
-                    if ((it % 50000) == 0) {
-                        println("${it} on ${Thread.currentThread().name }")
-                    }
-                    it + 1 })
-                .await()
-    })
-
-    println("Done 2b")
-}
 
 interface CoFlow<out T> {
 

@@ -1,6 +1,6 @@
 package hu.akarnokd.kotlin.scrabble
 
-import hu.akarnokd.kotlin.*
+import hu.akarnokd.kotlin.coflow.*
 import kotlinx.coroutines.experimental.runBlocking
 import java.util.ArrayList
 import java.util.TreeMap
@@ -82,7 +82,7 @@ suspend fun coFlowScrabble(state: ScrabbleState) : Any? {
     // Placing the word on the board
     // Building the streams of first and last letters
     val first3 : suspend (String) -> CoFlow<Int> = { word -> Chars(word).take(3) }
-    val last3 : suspend (String) -> CoFlow<Int>  = { word -> Chars(word).skip(3) }
+    val last3 : suspend (String) -> CoFlow<Int> = { word -> Chars(word).skip(3) }
 
 
     // Stream to be maxed
