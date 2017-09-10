@@ -643,6 +643,53 @@ suspend fun <T> concat(vararg sources: CoFlow<T>) : CoFlow<T> {
             val closeToken = SequentialConnection()
             consumer.onSubscribe(closeToken)
             launch(Unconfined) {
+                val ch = SpscOneChannel<Int>();
+
+                for (source in sources) {
+
+                    var inner = object: CoConsumer<T> {
+                        suspend override fun onSubscribe(conn: CoConnection) {
+                            closeToken.replace(conn)
+                        }
+
+                        suspend override fun onNext(t: T) {
+                            consumer.onNext(t)
+                        }
+
+                        suspend override fun onError(t: Throwable) {
+                            consumer.onError(t)
+                            ch.send(1)
+                        }
+
+                        suspend override fun onComplete() {
+                            ch.send(0)
+                        }
+                    }
+
+                    source.subscribe(inner)
+
+                    try {
+                        if (ch.receive() == 1) {
+                            break
+                        }
+                    } catch (ex: Throwable) {
+                        // ignored
+                        return@launch
+                    }
+                }
+
+                consumer.onComplete()
+            }
+        }
+    }
+}
+
+suspend fun <T> concat0(vararg sources: CoFlow<T>) : CoFlow<T> {
+    return object: CoFlow<T> {
+        suspend override fun subscribe(consumer: CoConsumer<T>) {
+            val closeToken = SequentialConnection()
+            consumer.onSubscribe(closeToken)
+            launch(Unconfined) {
                 val ch = Channel<Unit>(1);
 
                 for (source in sources) {
@@ -774,6 +821,48 @@ suspend fun <T> CoFlow<T>.filter(predicate: suspend (T) -> Boolean) : CoFlow<T> 
 
 
 suspend fun <T> CoFlow<T>.awaitFirst() : T {
+    val source = this
+
+    val ch = SpscOneChannel<Any>()
+
+    var value : T? = null
+
+    source.subscribe(object : CoConsumer<T> {
+        var upstream : CoConnection? = null
+        var done : Boolean = false
+
+        suspend override fun onSubscribe(conn: CoConnection) {
+            upstream = conn
+        }
+
+        suspend override fun onNext(t: T) {
+            done = true
+            upstream!!.close()
+            value = t
+            ch.send(Unit)
+        }
+
+        suspend override fun onError(t: Throwable) {
+            if (!done) {
+                ch.send(t)
+            }
+        }
+
+        suspend override fun onComplete() {
+            if (!done) {
+                ch.send(NoSuchElementException())
+            }
+        }
+    })
+
+    val o = ch.receive()
+    if (o != Unit) {
+        throw o as Throwable
+    }
+    return value!!
+}
+
+suspend fun <T> CoFlow<T>.awaitFirst0() : T {
     val source = this
 
     val ch = Channel<T>(1)

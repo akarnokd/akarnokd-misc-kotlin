@@ -61,7 +61,7 @@ abstract class Observable<T> {
         fun <O> just(value: O): Observable<O> = FromValue(value)
         @JvmStatic
         fun <O> fromIterable(iterable: Iterable<O>): Observable<O> = FromIterable(iterable)
-
+        @JvmStatic
         fun <T> concat(vararg sources: Observable<T>): Observable<T> = Concat(arrayOf(*sources))
     }
 }
