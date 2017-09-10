@@ -278,6 +278,7 @@ suspend fun <T, R> CoFlow<T>.map(mapper: suspend (T) -> R) : CoFlow<R> {
                     } catch (ex: Throwable) {
                         done = true
                         upstream!!.close()
+                        consumer.onError(ex)
                         return
                     }
                     consumer.onNext(r)
