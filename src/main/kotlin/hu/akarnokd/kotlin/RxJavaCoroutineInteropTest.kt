@@ -25,18 +25,18 @@ object RxJavaCoroutineInteropTest {
         println("---------------------")
 
         f.transform<Int, Int>({ t ->
-            println("$t - before")
+            println("$t - before sync")
             onNext(t)
-            println("$t - after")
+            println("$t - after sync")
             launch(CommonPool) {
-                println("${t + 1} - sleep")
+                println("${t + 1} - sleep async")
                 delay(100)
-                println("${t + 1} - before")
+                println("${t + 1} - before async")
                 onNext(t + 1)
-                println("${t + 1} - after")
+                println("${t + 1} - after async ")
             }
             .join()
-            println("$t - transformed")
+            println("$t - transformed sync")
         })
         .test()
                 .awaitDone(500, TimeUnit.SECONDS)
