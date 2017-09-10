@@ -643,7 +643,7 @@ suspend fun <T> concat(vararg sources: CoFlow<T>) : CoFlow<T> {
             val closeToken = SequentialConnection()
             consumer.onSubscribe(closeToken)
             launch(Unconfined) {
-                val ch = SpscOneChannel<Int>();
+                val ch = SpscArrayChannel<Int>(16);
 
                 for (source in sources) {
 
@@ -855,7 +855,7 @@ suspend fun <T> CoFlow<T>.awaitFirst() : T {
         }
     })
 
-    val o = ch.receive()
+    val o = ch.receiveOnce()
     if (o != Unit) {
         throw o as Throwable
     }

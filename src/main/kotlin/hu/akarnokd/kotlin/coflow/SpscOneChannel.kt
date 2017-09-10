@@ -46,6 +46,19 @@ class SpscOneChannel<T> {
             }
         }
     }
+
+    suspend fun receiveOnce() : T {
+        while (true) {
+            val v = queue.get()
+            if (v != null) {
+                queue.lazySet(null)
+                return v;
+            }
+            suspendCoroutine<Unit> { cont ->
+                await(empty, cont)
+            }
+        }
+    }
 }
 
 
@@ -54,13 +67,13 @@ fun notify(ref: AtomicReference<Cont?>) {
         val cont = ref.get()
         val next : Cont?
         if (cont != null && cont != TOKEN) {
-            cont.resume(Unit)
-            next = null
+            if (ref.compareAndSet(cont, null)) {
+                cont.resume(Unit)
+            }
         } else {
-            next = TOKEN
-        }
-        if (ref.compareAndSet(cont, next)) {
-            break;
+            if (ref.compareAndSet(cont, TOKEN)) {
+                break;
+            }
         }
     }
 }
@@ -68,16 +81,17 @@ fun notify(ref: AtomicReference<Cont?>) {
 fun await(ref: AtomicReference<Cont?>, cont: Continuation<Unit>) {
     while (true) {
         val a = ref.get()
-        val b : Cont?
         if (a == TOKEN) {
-            cont.resume(Unit)
-            b = null
+            if (ref.compareAndSet(a, null)) {
+                cont.resume(Unit)
+                break
+            }
         } else {
-            b = cont
+            if (ref.compareAndSet(a, cont)) {
+                break;
+            }
         }
-        if (ref.compareAndSet(a, b)) {
-            break;
-        }
+
     }
 }
 
