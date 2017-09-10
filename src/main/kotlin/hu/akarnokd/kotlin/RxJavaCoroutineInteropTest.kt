@@ -2,6 +2,7 @@ package hu.akarnokd.kotlin
 
 import io.reactivex.Flowable
 import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.Unconfined
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import java.util.concurrent.TimeUnit
@@ -39,7 +40,7 @@ object RxJavaCoroutineInteropTest {
             println("$t - transformed sync")
         })
         .test()
-                .awaitDone(500, TimeUnit.SECONDS)
+                .awaitDone(5, TimeUnit.SECONDS)
                 .assertResult(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10)
     }
 
