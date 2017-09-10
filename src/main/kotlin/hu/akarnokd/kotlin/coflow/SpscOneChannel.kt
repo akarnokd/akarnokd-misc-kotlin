@@ -69,6 +69,7 @@ fun notify(ref: AtomicReference<Cont?>) {
         if (cont != null && cont != TOKEN) {
             if (ref.compareAndSet(cont, null)) {
                 cont.resume(Unit)
+                break
             }
         } else {
             if (ref.compareAndSet(cont, TOKEN)) {
