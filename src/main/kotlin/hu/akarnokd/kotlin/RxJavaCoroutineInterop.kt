@@ -3,9 +3,13 @@ package hu.akarnokd.kotlin
 import hu.akarnokd.kotlin.coflow.*
 import io.reactivex.Flowable
 import io.reactivex.FlowableSubscriber
+import io.reactivex.internal.disposables.SequentialDisposable
 import io.reactivex.internal.subscriptions.SubscriptionHelper
 import io.reactivex.internal.util.BackpressureHelper
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.channels.ReceiveChannel
+import kotlinx.coroutines.experimental.channels.produce
 import org.reactivestreams.Subscriber
 import org.reactivestreams.Subscription
 import java.util.concurrent.atomic.AtomicInteger
@@ -21,8 +25,6 @@ interface SuspendEmitter<in T> : CoroutineScope {
     suspend fun onError(t: Throwable)
 
     suspend fun onComplete()
-
-    fun isCancelled() : Boolean
 }
 
 fun <T> produceFlow(producer: suspend SuspendEmitter<T>.() -> Unit) : Flowable<T> {
@@ -33,12 +35,73 @@ fun <T, R> Flowable<T>.transform(transformer: suspend SuspendEmitter<R>.(T) -> U
     return Transform(this, transformer)
 }
 
+val DONE = Object()
+
+suspend fun <T> Flowable<T>.toReceiver(capacityHint: Int = 128) : ReceiveChannel<T> {
+    val queue = SpscArrayChannel<Any>(capacityHint)
+
+    val upstream = AtomicReference<Subscription>()
+    val error = AtomicReference<Throwable>()
+    val wip = AtomicInteger()
+
+    subscribe(object: FlowableSubscriber<T> {
+
+        override fun onSubscribe(s: Subscription) {
+            if (SubscriptionHelper.setOnce(upstream, s)) {
+                s.request(1)
+            }
+        }
+
+        override fun onNext(t: T) {
+            launch (Unconfined) {
+                wip.getAndIncrement()
+                queue.send(t as Any);
+
+                if (wip.decrementAndGet() == 0) {
+                    upstream.get().request(1)
+                } else {
+                    queue.send(DONE);
+                }
+            }
+        }
+
+        override fun onComplete() {
+            if (wip.getAndIncrement() == 0) {
+                launch(Unconfined) {
+                    queue.send(DONE);
+                }
+            }
+        }
+
+        override fun onError(t: Throwable) {
+            error.lazySet(t)
+            onComplete()
+        }
+
+    })
+
+    return produce(Unconfined) {
+        coroutineContext[Job]?.invokeOnCompletion { SubscriptionHelper.cancel(upstream) }
+        while (true) {
+            val o = queue.receive()
+            if (o == DONE) {
+                val ex = error.get()
+                if (ex != null) {
+                    throw ex
+                }
+                break
+            }
+            send(o as T)
+        }
+    }
+}
+
 
 class Transform<T, R>(private val source: Flowable<T>, private val transformer: suspend SuspendEmitter<R>.(T) -> Unit) : Flowable<R>() {
     override fun subscribeActual(s: Subscriber<in R>) {
-        val parent = ProduceWithResource(s)
-        s.onSubscribe(parent)
         val ctx = newCoroutineContext(Unconfined)
+        val parent = ProduceWithResource(s, ctx)
+        s.onSubscribe(parent)
         source.subscribe(object: FlowableSubscriber<T> {
 
             var upstream : Subscription? = null
@@ -94,7 +157,7 @@ class Transform<T, R>(private val source: Flowable<T>, private val transformer: 
 class Produce<T>(private val producer: suspend SuspendEmitter<T>.() -> Unit) : Flowable<T>() {
     override fun subscribeActual(s: Subscriber<in T>) {
         launch(Unconfined) {
-            val parent = ProduceSubscription(s)
+            val parent = ProduceSubscription(s, coroutineContext)
             parent.setJob(coroutineContext[Job])
             s.onSubscribe(parent)
             producer(parent)
@@ -102,7 +165,10 @@ class Produce<T>(private val producer: suspend SuspendEmitter<T>.() -> Unit) : F
     }
 }
 
-open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
+open class ProduceSubscription<T>(
+        private val actual: Subscriber<in T>,
+        private val ctx : CoroutineContext
+) : Subscription, SuspendEmitter<T> {
 
     companion object {
         val CANCELLED = Object()
@@ -110,15 +176,11 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
 
     @Suppress("DEPRECATION")
     override val context: CoroutineContext
-        get() = ctx!!
+        get() = ctx
 
     override val isActive: Boolean
         get() = job.get() != CANCELLED
 
-
-    private val actual: Subscriber<in T>
-
-    private val ctx : CoroutineContext? = null
 
     private val job = AtomicReference<Any>()
 
@@ -127,11 +189,6 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
     private val resume = AtomicReference<Cont?>()
 
     private var done: Boolean = false
-
-    constructor(
-            actual: Subscriber<in T>) {
-        this.actual = actual
-    }
 
     override suspend fun onNext(t: T) {
         if (job.get() == CANCELLED) {
@@ -161,9 +218,7 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
             actual.onError(t)
             cancel()
         }
-        if (job.get() == CANCELLED) {
-            suspendCoroutine<Unit> { }
-        }
+        suspendCoroutine<Unit> { }
     }
 
     override suspend fun onComplete() {
@@ -172,21 +227,13 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
             actual.onComplete()
             cancel()
         }
-        if (job.get() == CANCELLED) {
-            suspendCoroutine<Unit> { }
-        }
+        suspendCoroutine<Unit> { }
     }
 
     override fun cancel() {
         val o = job.getAndSet(CANCELLED)
         if (o != CANCELLED) {
             (o as Job).cancel()
-        }
-    }
-
-    override fun request(n: Long) {
-        if (BackpressureHelper.add(requested, n) == 0L) {
-            notify(resume)
         }
     }
 
@@ -203,12 +250,18 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
         }
     }
 
-    override fun isCancelled(): Boolean {
-        return job.get() == CANCELLED
+
+    override fun request(n: Long) {
+        if (BackpressureHelper.add(requested, n) == 0L) {
+            notify(resume)
+        }
     }
 }
 
-class ProduceWithResource<T>(actual: Subscriber<in T>) : ProduceSubscription<T>(actual) {
+class ProduceWithResource<T>(
+        actual: Subscriber<in T>,
+        ctx : CoroutineContext
+) : ProduceSubscription<T>(actual, ctx) {
     private val resource = AtomicReference<Subscription>()
 
     fun setResource(s: Subscription) {

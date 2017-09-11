@@ -1,23 +1,53 @@
 package hu.akarnokd.kotlin
 
 import io.reactivex.Flowable
-import kotlinx.coroutines.experimental.CommonPool
-import kotlinx.coroutines.experimental.Unconfined
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
+import io.reactivex.schedulers.Schedulers
+import kotlinx.coroutines.experimental.*
 import java.util.concurrent.TimeUnit
 
 object RxJavaCoroutineInteropTest {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        val f = produceFlow<Int> {
+        val f = produceFlow {
             for (i in 0 until 10) {
                 println("Generating $i")
                 onNext(i)
             }
             onComplete()
         }
+
+        f.test(0)
+                .assertEmpty()
+                .requestMore(5)
+                .assertValues(0, 1, 2, 3, 4)
+                .requestMore(5)
+                .assertResult(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+
+        f.transform({
+            if (it % 2 == 0) {
+                onNext(it)
+            }
+        })
+        .test()
+        .assertResult(0, 2, 4, 6, 8)
+
+        f.transform({
+            onNext(it)
+            onNext(it + 1)
+        })
+        .test()
+        .assertResult(0, 1, 1, 2, 2, 3, 3, 4, 4,
+                5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10)
+
+        f.transform({
+            launch(CommonPool) {
+                onNext(it + 1)
+            }
+        })
+        .test()
+        .awaitDone(5, TimeUnit.SECONDS)
+        .assertResult(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
         old(f)
 
@@ -42,6 +72,18 @@ object RxJavaCoroutineInteropTest {
         .test()
                 .awaitDone(5, TimeUnit.SECONDS)
                 .assertResult(0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10)
+
+        runBlocking {
+            for (i in f.toReceiver()) {
+                println(i)
+            }
+            println("Done")
+
+            for (i in f.subscribeOn(Schedulers.single()).toReceiver()) {
+                println("Async $i")
+            }
+            println("Async Done")
+        }
     }
 
     fun old(f: Flowable<Int>) {

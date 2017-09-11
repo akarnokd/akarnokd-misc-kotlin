@@ -3,7 +3,6 @@ package hu.akarnokd.kotlin.coflow
 import io.reactivex.internal.queue.SpscArrayQueue
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.experimental.Continuation
-import kotlin.coroutines.experimental.CoroutineContext
 import kotlin.coroutines.experimental.suspendCoroutine
 
 typealias Cont = Continuation<Unit>
