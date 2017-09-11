@@ -68,6 +68,7 @@ class Transform<T, R>(private val source: Flowable<T>, private val transformer: 
                         } else {
                             s.onError(ex)
                         }
+                        parent.cancel()
                     }
                 }
             }
@@ -76,12 +77,14 @@ class Transform<T, R>(private val source: Flowable<T>, private val transformer: 
                 error = t
                 if (wip.getAndIncrement() == 0) {
                     s.onError(t)
+                    parent.cancel()
                 }
             }
 
             override fun onComplete() {
                 if (wip.getAndIncrement() == 0) {
                     s.onComplete()
+                    parent.cancel()
                 }
             }
         })
