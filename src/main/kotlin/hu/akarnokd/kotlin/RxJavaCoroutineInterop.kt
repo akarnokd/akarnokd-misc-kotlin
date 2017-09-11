@@ -5,12 +5,10 @@ import io.reactivex.Flowable
 import io.reactivex.FlowableSubscriber
 import io.reactivex.internal.subscriptions.SubscriptionHelper
 import io.reactivex.internal.util.BackpressureHelper
-import kotlinx.coroutines.experimental.CoroutineScope
-import kotlinx.coroutines.experimental.Job
-import kotlinx.coroutines.experimental.Unconfined
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.*
 import org.reactivestreams.Subscriber
 import org.reactivestreams.Subscription
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.experimental.CoroutineContext
@@ -38,47 +36,63 @@ fun <T, R> Flowable<T>.transform(transformer: suspend SuspendEmitter<R>.(T) -> U
 
 class Transform<T, R>(private val source: Flowable<T>, private val transformer: suspend SuspendEmitter<R>.(T) -> Unit) : Flowable<R>() {
     override fun subscribeActual(s: Subscriber<in R>) {
-        launch(Unconfined) {
-            val parent = ProduceWithResource(s, coroutineContext)
-            s.onSubscribe(parent)
+        val parent = ProduceWithResource(s)
+        s.onSubscribe(parent)
+        val ctx = newCoroutineContext(Unconfined)
+        source.subscribe(object: FlowableSubscriber<T> {
 
-            source.subscribe(object: FlowableSubscriber<T> {
+            var upstream : Subscription? = null
 
-                var upstream : Subscription? = null
+            val wip = AtomicInteger()
+            var error: Throwable? = null
 
-                override fun onSubscribe(s: Subscription) {
-                    upstream = s
-                    parent.setResource(s)
-                    s.request(1)
-                }
+            override fun onSubscribe(s: Subscription) {
+                upstream = s
+                parent.setResource(s)
+                s.request(1)
+            }
 
-                override fun onNext(t: T) {
-                    launch(parent.coroutineContext) {
-                        transformer(parent, t)
+            override fun onNext(t: T) {
+                launch(ctx) {
+                    parent.setJob(coroutineContext[Job])
+                    wip.getAndIncrement()
+
+                    transformer(parent, t)
+
+                    if (wip.decrementAndGet() == 0) {
                         upstream!!.request(1)
+                    } else {
+                        val ex = error;
+                        if (ex == null) {
+                            s.onComplete()
+                        } else {
+                            s.onError(ex)
+                        }
                     }
                 }
+            }
 
-                override fun onError(t: Throwable) {
-                    launch(parent.coroutineContext) {
-                        s.onError(t)
-                    }
+            override fun onError(t: Throwable) {
+                error = t
+                if (wip.getAndIncrement() == 0) {
+                    s.onError(t)
                 }
+            }
 
-                override fun onComplete() {
-                    launch(parent.coroutineContext) {
-                        s.onComplete()
-                    }
+            override fun onComplete() {
+                if (wip.getAndIncrement() == 0) {
+                    s.onComplete()
                 }
-            })
-        }
+            }
+        })
     }
 }
 
 class Produce<T>(private val producer: suspend SuspendEmitter<T>.() -> Unit) : Flowable<T>() {
     override fun subscribeActual(s: Subscriber<in T>) {
         launch(Unconfined) {
-            val parent = ProduceSubscription(s, coroutineContext)
+            val parent = ProduceSubscription(s)
+            parent.setJob(coroutineContext[Job])
             s.onSubscribe(parent)
             producer(parent)
         }
@@ -93,7 +107,7 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
 
     @Suppress("DEPRECATION")
     override val context: CoroutineContext
-        get() = ctx
+        get() = ctx!!
 
     override val isActive: Boolean
         get() = job.get() != CANCELLED
@@ -101,7 +115,7 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
 
     private val actual: Subscriber<in T>
 
-    private val ctx : CoroutineContext
+    private val ctx : CoroutineContext? = null
 
     private val job = AtomicReference<Any>()
 
@@ -112,11 +126,8 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
     private var done: Boolean = false
 
     constructor(
-            actual: Subscriber<in T>,
-            ctx: CoroutineContext) {
+            actual: Subscriber<in T>) {
         this.actual = actual
-        this.ctx = ctx
-        setJob(ctx[Job])
     }
 
     override suspend fun onNext(t: T) {
@@ -194,8 +205,7 @@ open class ProduceSubscription<T> : Subscription, SuspendEmitter<T> {
     }
 }
 
-class ProduceWithResource<T>(actual: Subscriber<in T>,
-                             ctx: CoroutineContext) : ProduceSubscription<T>(actual, ctx) {
+class ProduceWithResource<T>(actual: Subscriber<in T>) : ProduceSubscription<T>(actual) {
     private val resource = AtomicReference<Subscription>()
 
     fun setResource(s: Subscription) {
