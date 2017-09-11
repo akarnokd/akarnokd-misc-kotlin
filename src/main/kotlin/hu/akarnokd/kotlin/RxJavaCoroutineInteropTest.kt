@@ -19,7 +19,7 @@ object RxJavaCoroutineInteropTest {
             onComplete()
         }
 
-        // old(f)
+        old(f)
 
         println("---------------------")
         println("Transform 1 - N async")
